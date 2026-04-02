@@ -1,10 +1,13 @@
+KB1 = {('A(tony)',),('A(mike)',),('A(john)',),('L(tony,rain)',),('L(tony,snow)',),('~A(x)','S(x)','C(x)'),('~C(y)','~L(y,rain)'),('L(z,snow)','~S(z)'),('~L(tony,u)','~L(mike,u)'),('L(tony,v)','L(mike,v)'),('~A(w)','~C(w)','S(w)')}
+KB2 = {('On(tony,mike)',), ('On(mike,john)',), ('Green(tony)',), ('~Green(john)',), ('~On(xx,yy)','~Green(xx)','Green(yy)')}
 #1
 #任务目标：编写函数 ResolutionProp 实现命题逻辑的归结推理过程。
 def ResolutionProp(kb:set):
-  clauses = list(kb)
+  clauses = list(sorted(kb))
   res = []
   idx = 1
   for clause in clauses:
+    #print(f"{clause}\n")
     res.append(f"{idx} {clause}")
     idx += 1
   
@@ -53,7 +56,6 @@ def ResolutionProp(kb:set):
             break
   return res
 
-
 def simplify(clause):
     """删除互补文字对"""
     clause = list(clause)  # 转为列表
@@ -87,6 +89,10 @@ def is_const(it):
     return True
 
 def replace(it, res):
+    # 先处理~符号
+    if it.startswith('~'):
+        return '~' + replace(it[1:], res)
+    
     if is_var(it):
        if it in res:
           return replace(res[it], res)
@@ -94,8 +100,10 @@ def replace(it, res):
     if is_const(it):
        return it
     """不是变量或常量，则是复合项"""
-    it_paras = it[2:-1]
-    return it[0] + '(' + replace(it_paras, res) + ')'
+    paren_idx = it.index('(')
+    func_name = it[:paren_idx]
+    params_str = it[paren_idx+1:-1]
+    return func_name + '(' + replace(params_str, res) + ')'
 
 def is_occurred(var, term, res):
     """检查var是否出现在term中（防止循环替换"""
@@ -146,19 +154,111 @@ def unify(it1, it2, res):
     return res
 
 def MGU(f1, f2):
+    
     res = {}
+    
+    # 提取谓词名（括号前的部分）
+    idx1 = f1.index('(') if '(' in f1 else -1
+    idx2 = f2.index('(') if '(' in f2 else -1
+    
+    pred1 = f1[:idx1]
+    pred2 = f2[:idx2]
+    
+    # 谓词名必须相同
+    if pred1 != pred2:
+        return None
 
-    clause1 = f1[2:-1]
-    clause2 = f2[2:-1]
+    clause1 = f1[idx1+1:-1]
+    clause2 = f2[idx2+1:-1]
     parameters1 = clause1.split(",")
     parameters2 = clause2.split(",")
 
     if len(parameters1) != len(parameters2):
-       return None, f"参数数量不一样，怎么合并喵？"
+       print(f"参数数量不一样，怎么合并喵？")
+       return None
     
     for it1, it2 in zip(parameters1, parameters2):
        res = unify(it1, it2, res)
        if res is None:
-          return None, "失败了喵"
+          print("失败了喵")
+          return None
 
-    return res, "成功了喵"
+    return res
+
+def ResolutionPrinciple(kb:set):
+   clauses = list(sorted(kb))
+   res = []
+   idx = 1
+   for clause in clauses:
+      #print(f"{clause}\n")
+      res.append(f"{idx} {clause}")
+      idx += 1
+   
+   found = True
+   visited_clauses = []
+   while found:
+         found = False
+         n = len(clauses)
+         for i in range(n):
+            for j in range(i+1, n):
+               if i in visited_clauses or j in visited_clauses:
+                  continue
+
+               ci = clauses[i]
+               cj = clauses[j]
+
+               src_idx = 0
+               for src in ci:
+                  obj_idx = 0
+                  for obj in cj:
+                     # 归结的第一个检查：一个是肯定一个是否定
+                     if src.startswith('~') == obj.startswith('~'):
+                        obj_idx += 1
+                        continue
+                     '''判断是否可以合一'''
+                     # MGU的功能只是进行合一，而并不处理可以归结的一肯定一否定的两个语句，因此需要在这里处理
+                     if src.startswith('~'):
+                        sigma = MGU(src[1:], obj)
+                     else:
+                        sigma = MGU(src, obj[1:])
+                     # 检查是否可以合一，若不可，则说明谓词不一致或者参数不可合一
+                     if sigma is None:
+                        obj_idx += 1
+                        continue
+                     '''可以合一，那么合一之后就该替换'''
+                     # 对所有文字进行替换
+                     new_ci = tuple(replace(lit, sigma) for lit in ci)
+                     new_cj = tuple(replace(lit, sigma) for lit in cj)
+                     
+                     # 找到匹配的文字进行消解
+                     src = replace(src, sigma)
+                     obj = replace(obj, sigma)
+                     
+                     merged = sorted(tuple(x for x in new_ci if x != src) + tuple(x for x in new_cj if x != obj))
+                     merged = simplify(merged)
+
+                     suffix_i = ""
+                     if len(ci) > 1:
+                        suffix_i = chr(ord('a') + src_idx)
+                     suffix_j = ""
+                     if len(cj) > 1:
+                        suffix_j = chr(ord('a') + obj_idx)
+
+                     res.append(f"{idx} R[{i+1}{suffix_i}, {j+1}{suffix_j}] = {merged}")
+                     idx += 1
+
+                     if not merged: return res
+                     
+                     found = True
+                     visited_clauses.append(i)
+                     clauses[j] = merged
+                     break
+                  obj_idx += 1
+                  src_idx += 1
+                  if found:
+                     break
+               if found:
+                  break
+            if found:
+               break
+   return res
