@@ -201,6 +201,7 @@ def MGU(f1, f2):
     return res
 
 def ResolutionPrinciple(kb:set):
+   """返回全部推导步骤，不做回溯"""
    clauses = list(sorted(kb))
    initial_count = len(clauses)
    
@@ -210,135 +211,80 @@ def ResolutionPrinciple(kb:set):
       res.append(f"{idx} {clause}")
       idx += 1
    
-   # DFS 搜索
-   def dfs(new_idx):
-      """用第 new_idx 个子句和所有前面的子句配对"""
+   def try_resolve(ci_idx, cj_idx):
+      """尝试对 ci_idx 和 cj_idx 进行消解"""
       nonlocal idx
       
-      cj = clauses[new_idx]
+      ci = clauses[ci_idx]
+      cj = clauses[cj_idx]
       
-      for i in range(new_idx):
-         ci = clauses[i]
-         
-         src_idx = 0
-         found_merge = False
-         
-         for src in ci:
-            if found_merge:
-               break
-            obj_idx = 0
-            for obj in cj:
-               if src.startswith('~') == obj.startswith('~'):
-                  obj_idx += 1
-                  continue
-               
-               sigma = None
-               if src.startswith('~'):
-                  sigma = MGU(src[1:], obj)
-               else:
-                  sigma = MGU(src, obj[1:])
-               
-               if sigma is None:
-                  obj_idx += 1
-                  continue
-               
-               new_ci = tuple(replace(lit, sigma) for lit in ci)
-               new_cj = tuple(replace(lit, sigma) for lit in cj)
-               
-               src_replaced = replace(src, sigma)
-               obj_replaced = replace(obj, sigma)
-               
-               merged = sorted(tuple(x for x in new_ci if x != src_replaced) + tuple(x for x in new_cj if x != obj_replaced))
-               merged = simplify(merged)
-
-               suffix_i = ""
-               if len(ci) > 1:
-                  suffix_i = chr(ord('a') + src_idx)
-               suffix_j = ""
-               if len(cj) > 1:
-                  suffix_j = chr(ord('a') + obj_idx)
-
-               res.append(f"{idx} R[{i+1}{suffix_i}, {new_idx+1}{suffix_j}] = {merged}")
-               idx += 1
-
-               if not merged:
-                  # 找到空子句，立即返回成功
-                  return True
-               
-               # 避免重复添加
-               if merged not in clauses:
-                  clauses.append(merged)
-                  # 立即对新子句做 DFS
-                  if dfs(len(clauses) - 1):
-                     return True
-               
-               found_merge = True
-               break
+      src_idx = 0
+      for src in ci:
+         obj_idx = 0
+         for obj in cj:
+            if src.startswith('~') == obj.startswith('~'):
+               obj_idx += 1
+               continue
             
-            src_idx += 1
+            sigma = None
+            if src.startswith('~'):
+               sigma = MGU(src[1:], obj)
+            else:
+               sigma = MGU(src, obj[1:])
+            
+            if sigma is None:
+               obj_idx += 1
+               continue
+            
+            new_ci = tuple(replace(lit, sigma) for lit in ci)
+            new_cj = tuple(replace(lit, sigma) for lit in cj)
+            
+            src_replaced = replace(src, sigma)
+            obj_replaced = replace(obj, sigma)
+            
+            merged = sorted(tuple(x for x in new_ci if x != src_replaced) + tuple(x for x in new_cj if x != obj_replaced))
+            merged = simplify(merged)
+
+            suffix_i = "" if len(ci) == 1 else chr(ord('a') + src_idx)
+            suffix_j = "" if len(cj) == 1 else chr(ord('a') + obj_idx)
+
+            ci_line = ci_idx + 1
+            cj_line = cj_idx + 1
+            res.append(f"{idx} R[{ci_line}{suffix_i}, {cj_line}{suffix_j}] = {merged}")
+            idx += 1
+            
+            return merged
+         
+         src_idx += 1
       
+      return None
+   
+   def dfs(new_clause_idx):
+      """DFS：对新子句和所有前面的子句尝试消解"""
+      for i in range(new_clause_idx):
+         merged = try_resolve(i, new_clause_idx)
+         if merged is not None:
+            if not merged:  # 空子句
+               return True
+            if merged not in clauses:
+               clauses.append(merged)
+               if dfs(len(clauses) - 1):
+                  return True
       return False
    
-   # 先用初始子句互相配对，生成第一批新子句
+   # 初始配对
    for i in range(initial_count):
       for j in range(i+1, initial_count):
-         ci = clauses[i]
-         cj = clauses[j]
-         
-         src_idx = 0
-         found_merge = False
-         
-         for src in ci:
-            if found_merge:
-               break
-            obj_idx = 0
-            for obj in cj:
-               if src.startswith('~') == obj.startswith('~'):
-                  obj_idx += 1
-                  continue
-               
-               sigma = None
-               if src.startswith('~'):
-                  sigma = MGU(src[1:], obj)
-               else:
-                  sigma = MGU(src, obj[1:])
-               
-               if sigma is None:
-                  obj_idx += 1
-                  continue
-               
-               new_ci = tuple(replace(lit, sigma) for lit in ci)
-               new_cj = tuple(replace(lit, sigma) for lit in cj)
-               
-               src_replaced = replace(src, sigma)
-               obj_replaced = replace(obj, sigma)
-               
-               merged = sorted(tuple(x for x in new_ci if x != src_replaced) + tuple(x for x in new_cj if x != obj_replaced))
-               merged = simplify(merged)
-
-               suffix_i = ""
-               if len(ci) > 1:
-                  suffix_i = chr(ord('a') + src_idx)
-               suffix_j = ""
-               if len(cj) > 1:
-                  suffix_j = chr(ord('a') + obj_idx)
-
-               res.append(f"{idx} R[{i+1}{suffix_i}, {j+1}{suffix_j}] = {merged}")
-               idx += 1
-
-               if not merged:
-                  return res
-               
-               if merged not in clauses:
-                  clauses.append(merged)
-               
-               found_merge = True
-               break
-            
-            src_idx += 1
+         merged = try_resolve(i, j)
+         if merged is not None:
+            if not merged:  # 空子句
+               return res
+            if merged not in clauses:
+               clauses.append(merged)
    
-   # 现在对每个新生成的子句进行 DFS
+   # DFS 搜索
    for i in range(initial_count, len(clauses)):
       if dfs(i):
          return res
+   
    return res
