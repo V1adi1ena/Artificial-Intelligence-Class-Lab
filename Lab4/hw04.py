@@ -142,29 +142,29 @@ def unify(it1, it2, res):
     """有一个是变量"""
     if is_var(t1):
        if is_occurred(t1, t2, res):
-          print(f"{t1}在{t1}中出现了喵")
+          #print(f"{t1}在{t1}中出现了喵")
           return None
        res[t1] = t2
        return res
     if is_var(t2):
        if is_occurred(t2, t1, res):
-          print(f"{t2}在{t1}中出现了喵")
+          #print(f"{t2}在{t1}中出现了喵")
           return None
        res[t2] = t1
        return res
     """两个常量，或一个常量一个复合项"""
     if is_const(t1) or is_const(t2):
-       print(f"常量不能替换喵")
+       #print(f"常量不能替换喵")
        return None
     """两个复合项"""
     if t1[0] != t2[0]:
-       print(f"函数不一样喵")
+       #print(f"函数不一样喵")
        return None
     for arg1, arg2 in zip(t1[2:-1].split(','), t2[2:-1].split(',')):
-        print(arg1, arg2)
+        #print(arg1, arg2)
         res = unify(arg1, arg2, res)
         if res is None:
-           print(f"{t1}和{t2}没法合一喵")
+           #print(f"{t1}和{t2}没法合一喵")
            return None
     return res
 
@@ -189,95 +189,156 @@ def MGU(f1, f2):
     parameters2 = clause2.split(",")
 
     if len(parameters1) != len(parameters2):
-       print(f"参数数量不一样，怎么合并喵？")
+       #print(f"参数数量不一样，怎么合并喵？")
        return None
     
     for it1, it2 in zip(parameters1, parameters2):
        res = unify(it1, it2, res)
        if res is None:
-          print("失败了喵")
+          #print("失败了喵")
           return None
 
     return res
 
 def ResolutionPrinciple(kb:set):
    clauses = list(sorted(kb))
+   initial_count = len(clauses)
+   
    res = []
    idx = 1
    for clause in clauses:
       res.append(f"{idx} {clause}")
       idx += 1
    
-   while True:
-      found = False
-      new_clauses = []
-      n = len(clauses)
+   # DFS 搜索
+   def dfs(new_idx):
+      """用第 new_idx 个子句和所有前面的子句配对"""
+      nonlocal idx
       
-      # 完整遍历所有配对（这一轮内）
-      for i in range(n):
-         for j in range(i+1, n):
-            ci = clauses[i]
-            cj = clauses[j]
+      cj = clauses[new_idx]
+      
+      for i in range(new_idx):
+         ci = clauses[i]
+         
+         src_idx = 0
+         found_merge = False
+         
+         for src in ci:
+            if found_merge:
+               break
+            obj_idx = 0
+            for obj in cj:
+               if src.startswith('~') == obj.startswith('~'):
+                  obj_idx += 1
+                  continue
+               
+               sigma = None
+               if src.startswith('~'):
+                  sigma = MGU(src[1:], obj)
+               else:
+                  sigma = MGU(src, obj[1:])
+               
+               if sigma is None:
+                  obj_idx += 1
+                  continue
+               
+               new_ci = tuple(replace(lit, sigma) for lit in ci)
+               new_cj = tuple(replace(lit, sigma) for lit in cj)
+               
+               src_replaced = replace(src, sigma)
+               obj_replaced = replace(obj, sigma)
+               
+               merged = sorted(tuple(x for x in new_ci if x != src_replaced) + tuple(x for x in new_cj if x != obj_replaced))
+               merged = simplify(merged)
 
-            src_idx = 0
-            for src in ci:
-               obj_idx = 0
-               for obj in cj:
-                  # 归结的第一个检查：一个是肯定一个是否定
-                  if src.startswith('~') == obj.startswith('~'):
-                     obj_idx += 1
-                     continue
-                  '''判断是否可以合一'''
-                  sigma = []
-                  if src.startswith('~'):
-                     sigma = MGU(src[1:], obj)
-                  else:
-                     sigma = MGU(src, obj[1:])
-                  # 检查是否可以合一
-                  if sigma is None:
-                     obj_idx += 1
-                     continue
-                  '''可以合一，进行消解'''
-                  # 对所有文字进行替换
-                  new_ci = tuple(replace(lit, sigma) for lit in ci)
-                  new_cj = tuple(replace(lit, sigma) for lit in cj)
-                  
-                  # 找到匹配的文字进行消解
-                  src_replaced = replace(src, sigma)
-                  obj_replaced = replace(obj, sigma)
-                  
-                  merged = sorted(tuple(x for x in new_ci if x != src_replaced) + tuple(x for x in new_cj if x != obj_replaced))
-                  merged = simplify(merged)
+               suffix_i = ""
+               if len(ci) > 1:
+                  suffix_i = chr(ord('a') + src_idx)
+               suffix_j = ""
+               if len(cj) > 1:
+                  suffix_j = chr(ord('a') + obj_idx)
 
-                  suffix_i = ""
-                  if len(ci) > 1:
-                     suffix_i = chr(ord('a') + src_idx)
-                  suffix_j = ""
-                  if len(cj) > 1:
-                     suffix_j = chr(ord('a') + obj_idx)
+               res.append(f"{idx} R[{i+1}{suffix_i}, {new_idx+1}{suffix_j}] = {merged}")
+               idx += 1
 
-                  res.append(f"{idx} R[{i+1}{suffix_i}, {j+1}{suffix_j}] = {merged}")
-                  idx += 1
-
-                  if not merged: 
-                     return res  # 推导出空子句，成功
-                  
-                  # 检查是否已经存在这个子句
-                  if merged not in clauses and merged not in new_clauses:
-                     new_clauses.append(merged)
-                     found = True
-                  
-                  break  # 该配对 (i,j) 已处理，跳到下一对
-               obj_idx += 1
-               if found:
-                  break
+               if not merged:
+                  # 找到空子句，立即返回成功
+                  return True
+               
+               # 避免重复添加
+               if merged not in clauses:
+                  clauses.append(merged)
+                  # 立即对新子句做 DFS
+                  if dfs(len(clauses) - 1):
+                     return True
+               
+               found_merge = True
+               break
+            
             src_idx += 1
-          
-      # 如果这一轮没有产生新子句，停止
-      if not found:
-         break
       
-      # 否则加入新子句，进行下一轮
-      clauses.extend(new_clauses)
+      return False
    
+   # 先用初始子句互相配对，生成第一批新子句
+   for i in range(initial_count):
+      for j in range(i+1, initial_count):
+         ci = clauses[i]
+         cj = clauses[j]
+         
+         src_idx = 0
+         found_merge = False
+         
+         for src in ci:
+            if found_merge:
+               break
+            obj_idx = 0
+            for obj in cj:
+               if src.startswith('~') == obj.startswith('~'):
+                  obj_idx += 1
+                  continue
+               
+               sigma = None
+               if src.startswith('~'):
+                  sigma = MGU(src[1:], obj)
+               else:
+                  sigma = MGU(src, obj[1:])
+               
+               if sigma is None:
+                  obj_idx += 1
+                  continue
+               
+               new_ci = tuple(replace(lit, sigma) for lit in ci)
+               new_cj = tuple(replace(lit, sigma) for lit in cj)
+               
+               src_replaced = replace(src, sigma)
+               obj_replaced = replace(obj, sigma)
+               
+               merged = sorted(tuple(x for x in new_ci if x != src_replaced) + tuple(x for x in new_cj if x != obj_replaced))
+               merged = simplify(merged)
+
+               suffix_i = ""
+               if len(ci) > 1:
+                  suffix_i = chr(ord('a') + src_idx)
+               suffix_j = ""
+               if len(cj) > 1:
+                  suffix_j = chr(ord('a') + obj_idx)
+
+               res.append(f"{idx} R[{i+1}{suffix_i}, {j+1}{suffix_j}] = {merged}")
+               idx += 1
+
+               if not merged:
+                  return res
+               
+               if merged not in clauses:
+                  clauses.append(merged)
+               
+               found_merge = True
+               break
+            
+            src_idx += 1
+   
+   # 现在对每个新生成的子句进行 DFS
+   for i in range(initial_count, len(clauses)):
+      if dfs(i):
+         return res
    return res
