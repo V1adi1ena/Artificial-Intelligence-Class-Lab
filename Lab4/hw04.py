@@ -1,6 +1,5 @@
 #1
 #任务目标：编写函数 ResolutionProp 实现命题逻辑的归结推理过程。
-KB = {('FirstGrade',), ('~FirstGrade', 'Child'), ('~Child',)}
 def ResolutionProp(kb:set):
   clauses = list(kb)
   res = []
