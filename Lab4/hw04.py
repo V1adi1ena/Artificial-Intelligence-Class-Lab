@@ -80,26 +80,26 @@ def simplify(clause):
     # 去重并排序，返回元组
     return tuple(sorted(set(clause)))
 
-#2最一般合一算法 (MGU)
-# 任务目标：编写函数 MGU 实现最一般合一算法。
+"""2最一般合一算法 (MGU)
+任务目标：编写函数 MGU 实现最一般合一算法。
 
-# 实现要点：
+实现要点：
 
-# 输入：两个原子公式（字符串 str 类型），它们的谓词相同。
-# 输出：最一般合一的结果。
-# 数据类型为字典 dict。
-# 格式形如：{变量: 项, 变量: 项}，其中的变量和项均为字符串。
-# 异常处理：若不存在合一（即合一失败），则返回空字典 {}。
-# 示例：
+输入：两个原子公式（字符串 str 类型），它们的谓词相同。
+输出：最一般合一的结果。
+数据类型为字典 dict。
+格式形如：{变量: 项, 变量: 项}，其中的变量和项均为字符串。
+异常处理：若不存在合一（即合一失败），则返回空字典 {}。
+示例：
 
-# 示例 1
-# 调用：MGU('P(xx,a)', 'P(b,yy)')
-# 返回：{'xx': 'b', 'yy': 'a'}
-# 示例 2：
-# 调用：MGU('P(a,xx,f(g(yy)))', 'P(zz,f(zz),f(uu))')
-# 返回：{'zz': 'a', 'xx': 'f(a)', 'uu': 'g(yy)'}
+示例 1
+调用：MGU('P(xx,a)', 'P(b,yy)')
+返回：{'xx': 'b', 'yy': 'a'}
+示例 2：
+调用：MGU('P(a,xx,f(g(yy)))', 'P(zz,f(zz),f(uu))')
+返回：{'zz': 'a', 'xx': 'f(a)', 'uu': 'g(yy)'}"""
 def is_var(it):
-    return it in {'x', 'xx', 'y', 'yy', 'z', 'zz', 'w', 'ww', 'u', 'uu', 'p', 'q', 'r', 's', 't'}
+    return it in {'x', 'xx', 'y', 'yy', 'z', 'zz', 'w', 'ww', 'u', 'uu', 'v', 'vv', 'p', 'q', 'r', 's', 't'}
 def is_const(it):
     if(is_var(it)):
        return False
@@ -151,7 +151,7 @@ def replace(it, res):
         func_name, func_args = split_func(it)
         new_args = [replace(x, res) for x in func_args]
 
-        return f'{func_name}({', '.join(new_args)})'
+        return f"{func_name}({', '.join(new_args)})"
 
 def is_occurred(var, term):
     """检查var是否出现在term中（防止循环替换"""
@@ -168,17 +168,14 @@ def MGU(f1, f2):
         return None
     res = {}
     S = list(zip(f1, f2))
-
     while S:
         s, t = S.pop(0)
         s = replace(s, res)
         t = replace(t, res)
-        
         if s == t:
             continue
         if is_var(s):
             if is_occurred(s, t):
-                print(f"occurs check 失败: {s} 出现在 {t} 中")
                 return None
             new_binding = {s: t}
             res = {k: replace(v, new_binding) for k, v in res.items()}
@@ -186,17 +183,16 @@ def MGU(f1, f2):
             S = [(replace(a, new_binding), replace(b, new_binding)) for a, b in S]
             continue
 
-        if is_var(t):
+        elif is_var(t):
             if is_occurred(t, s):
                 print(f"occurs check 失败: {t} 出现在 {s} 中")
                 return None
-            new_binding = {s: t}
+            new_binding = {t: s}
             res = {k: replace(v, new_binding) for k, v in res.items()}
-            res[s] = t
+            res[t] = s
             S = [(replace(a, new_binding), replace(b, new_binding)) for a, b in S]
             continue
-
-        if is_func(s) and is_func(t):
+        elif is_func(s) and is_func(t):
             fname_s, args_s = split_func(s)
             fname_t, args_t = split_func(t)
             if fname_s != fname_t or len(args_s) != len(args_t):
@@ -204,35 +200,35 @@ def MGU(f1, f2):
                 return None
             S = list(zip(args_s, args_t)) + S
             continue
-
-        return None
+        else:
+            return None
     return res
 
 
-#3Resolution Principle 推导
-# 输入 KB = {(A(tony),),(A(mike),),(A(john),),(L(tony,rain),),(L(tony,snow),),(~A(x),S(x),C(x)),(~C(y),~L(y,rain)),(L(z,snow),~S(z)),(~L(tony,u),~L(mike,u)),(L(tony,v),L(mike,v)),(~A(w),~C(w),S(w))}
+"""3Resolution Principle 推导
+输入 KB = {(A(tony),),(A(mike),),(A(john),),(L(tony,rain),),(L(tony,snow),),(~A(x),S(x),C(x)),(~C(y),~L(y,rain)),(L(z,snow),~S(z)),(~L(tony,u),~L(mike,u)),(L(tony,v),L(mike,v)),(~A(w),~C(w),S(w))}
 
-# 输出
+输出
 
-# (A(tony),)
-# (A(mike),)
-# (A(john),)
-# (L(tony,rain),)
-# (L(tony,snow),)
-# (~A(x),S(x),C(x))
-# (~C(y),~L(y,rain))
-# (L(z,snow),~S(z))
-# (~L(tony,u),~L(mike,u))
-# (L(tony,v),L(mike,v))
-# (~A(w),~C(w),S(w))
-# R[2,11a]{w=mike} = (S(mike),~C(mike))
-# R[5,9a]{u=snow} = (~L(mike,snow),)
-# R[6c,12b]{x=mike} = (S(mike),~A(mike),S(mike))
-# R[2,14b] = (S(mike),)
-# R[8b,15]{z=mike} = (L(mike,snow),)
-# R[13,16] = []
+(A(tony),)
+(A(mike),)
+(A(john),)
+(L(tony,rain),)
+(L(tony,snow),)
+(~A(x),S(x),C(x))
+(~C(y),~L(y,rain))
+(L(z,snow),~S(z))
+(~L(tony,u),~L(mike,u))
+(L(tony,v),L(mike,v))
+(~A(w),~C(w),S(w))
+R[2,11a]{w=mike} = (S(mike),~C(mike))
+R[5,9a]{u=snow} = (~L(mike,snow),)
+R[6c,12b]{x=mike} = (S(mike),~A(mike),S(mike))
+R[2,14b] = (S(mike),)
+R[8b,15]{z=mike} = (L(mike,snow),)
+R[13,16] = []"""
 
-from MGU import *
+'from MGU import *'
 def Index(literal_idx,clause_idx,len):
     if len==1:
         return str(clause_idx+1)
@@ -267,7 +263,7 @@ def sequence(newclause,idx1,idx2,dictionary):
 def sub(clause,dictionary):
     newclause=[]
     for x in clause:
-        newclause.append(Map(x,dictionary))
+        newclause.append(replace(x,dictionary))
     return tuple(newclause)
 def resolution(KB):
     ALL=list(KB)

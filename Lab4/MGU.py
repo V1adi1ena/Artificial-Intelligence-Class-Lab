@@ -83,3 +83,23 @@ def MGU(para1,para2):
     for x in list(subst.keys()):
         subst[x]=Map(subst[x],subst)
     return subst
+if __name__=='__main__':
+    para1 = ['x']
+    para2 = ['f(x,y)']
+    result1 = MGU(para1, para2)
+    para1 = ['P(a,x,f(g(y)))']
+    para2 = ['P(z,f(z),f(u))']
+    result2 = MGU(para1, para2)
+    para1 = ['F(x, g(y, x))']
+    para2 = ['F(h(z), g(a, h(z)))']
+    result3 = MGU(para1,para2)
+    para1 = ['P(f(x), x)']
+    para2 = ['P(f(a), b)']
+    result4 = MGU(para1,para2)
+    para1 = ['P(xx,a)']
+    para2 = ['P(b,yy)']
+    result5 = MGU(para1,para2)
+    para1 = ['P(a,xx,f(g(yy)))']
+    para2 = ['P(zz,f(zz),f(uu))']
+    result6 = MGU(para1,para2)
+    print(result3)
