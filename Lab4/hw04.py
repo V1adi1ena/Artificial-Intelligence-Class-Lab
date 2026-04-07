@@ -1,9 +1,11 @@
+import re
+from itertools import combinations
 KB1 = {('A(tony)',),('A(mike)',),('A(john)',),('L(tony,rain)',),('L(tony,snow)',),('~A(x)','S(x)','C(x)'),('~C(y)','~L(y,rain)'),('L(z,snow)','~S(z)'),('~L(tony,u)','~L(mike,u)'),('L(tony,v)','L(mike,v)'),('~A(w)','~C(w)','S(w)')}
 KB2 = {('On(tony,mike)',), ('On(mike,john)',), ('Green(tony)',), ('~Green(john)',), ('~On(xx,yy)','~Green(xx)','Green(yy)')}
 #1
 #任务目标：编写函数 ResolutionProp 实现命题逻辑的归结推理过程。
 def ResolutionProp(kb:set):
-  clauses = list(sorted(kb))
+  clauses = list(kb)
   res = []
   idx = 1
   for clause in clauses:
@@ -78,7 +80,24 @@ def simplify(clause):
     # 去重并排序，返回元组
     return tuple(sorted(set(clause)))
 
-#2
+#2最一般合一算法 (MGU)
+# 任务目标：编写函数 MGU 实现最一般合一算法。
+
+# 实现要点：
+
+# 输入：两个原子公式（字符串 str 类型），它们的谓词相同。
+# 输出：最一般合一的结果。
+# 数据类型为字典 dict。
+# 格式形如：{变量: 项, 变量: 项}，其中的变量和项均为字符串。
+# 异常处理：若不存在合一（即合一失败），则返回空字典 {}。
+# 示例：
+
+# 示例 1
+# 调用：MGU('P(xx,a)', 'P(b,yy)')
+# 返回：{'xx': 'b', 'yy': 'a'}
+# 示例 2：
+# 调用：MGU('P(a,xx,f(g(yy)))', 'P(zz,f(zz),f(uu))')
+# 返回：{'zz': 'a', 'xx': 'f(a)', 'uu': 'g(yy)'}
 def is_var(it):
     return it in {'x', 'xx', 'y', 'yy', 'z', 'zz', 'w', 'ww', 'u', 'uu', 'p', 'q', 'r', 's', 't'}
 def is_const(it):
@@ -87,204 +106,265 @@ def is_const(it):
     if('(' in it):
        return False
     return True
+def is_func(it):
+   return isinstance(it, str) and '(' in it
+
+def split_func(func):
+    args = []
+    start = func.find('(')
+    func_name = func[:start]
+    
+    inner = func[start + 1 : func.rfind(')')]
+    depth = 0
+    current = ''
+    for ch in inner:
+        if ch == '(':
+            depth += 1
+            current += ch
+        elif ch == ')':
+            depth -= 1
+            current += ch
+        elif ch == ',' and depth == 0:
+            args.append(current.strip())
+            current = ''
+        else:
+            current += ch
+    if current.strip():
+        args.append(current.strip())
+    
+    return func_name, args
 
 def replace(it, res):
-    # 先处理~符号
-    if it.startswith('~'):
-        return '~' + replace(it[1:], res)
-    
+    if not res:
+        return it
     # 先处理~符号
     if it.startswith('~'):
         return '~' + replace(it[1:], res)
     
     if is_var(it):
-       if it in res:
+        if it in res:
           return replace(res[it], res)
-       return it
+        return it
     if is_const(it):
-       return it
-    """不是变量或常量，则是复合项"""
-    paren_idx = it.index('(')
-    func_name = it[:paren_idx]
-    params_str = it[paren_idx+1:-1]
-    
-    # 分割参数
-    params = [p.strip() for p in params_str.split(',')]
-    
-    it_changed = func_name + '('
-    it_changed += replace(params[0], res)
-    for para in params[1:]:
-        it_changed += ',' + replace(para, res)
-    it_changed += ')'
+        return it
+    if is_func(it):
+        func_name, func_args = split_func(it)
+        new_args = [replace(x, res) for x in func_args]
 
-    return it_changed
+        return f'{func_name}({', '.join(new_args)})'
 
-
-def is_occurred(var, term, res):
+def is_occurred(var, term):
     """检查var是否出现在term中（防止循环替换"""
-    term = replace(term, res)
     if var == term:
         return True
     if is_var(term) or is_const(term):
-       return False
-    else:
-       return any(is_occurred(var, arg, res) for arg in term[2:-1].split(','))
-
-def unify(it1, it2, res):
-    if res == None:
-       res = {}
-    t1 = replace(it1, res)
-    t2 = replace(it2, res)
-
-    if t1 == t2:
-       return res
-    
-    """有一个是变量"""
-    if is_var(t1):
-       if is_occurred(t1, t2, res):
-          #print(f"{t1}在{t1}中出现了喵")
-          return None
-       res[t1] = t2
-       return res
-    if is_var(t2):
-       if is_occurred(t2, t1, res):
-          #print(f"{t2}在{t1}中出现了喵")
-          return None
-       res[t2] = t1
-       return res
-    """两个常量，或一个常量一个复合项"""
-    if is_const(t1) or is_const(t2):
-       #print(f"常量不能替换喵")
-       return None
-    """两个复合项"""
-    if t1[0] != t2[0]:
-       #print(f"函数不一样喵")
-       return None
-    for arg1, arg2 in zip(t1[2:-1].split(','), t2[2:-1].split(',')):
-        #print(arg1, arg2)
-        res = unify(arg1, arg2, res)
-        if res is None:
-           #print(f"{t1}和{t2}没法合一喵")
-           return None
-    return res
+        return False
+    elif is_func(term):
+        _, args = split_func(term)
+        return any(is_occurred(var, arg) for arg in args)
 
 def MGU(f1, f2):
-    
-    res = {}
-    
-    # 提取谓词名（括号前的部分）
-    idx1 = f1.index('(') if '(' in f1 else -1
-    idx2 = f2.index('(') if '(' in f2 else -1
-    
-    pred1 = f1[:idx1]
-    pred2 = f2[:idx2]
-    
-    # 谓词名必须相同
-    if pred1 != pred2:
+    if len(f1) != len(f2):
         return None
+    res = {}
+    S = list(zip(f1, f2))
 
-    clause1 = f1[idx1+1:-1]
-    clause2 = f2[idx2+1:-1]
-    parameters1 = clause1.split(",")
-    parameters2 = clause2.split(",")
+    while S:
+        s, t = S.pop(0)
+        s = replace(s, res)
+        t = replace(t, res)
+        
+        if s == t:
+            continue
+        if is_var(s):
+            if is_occurred(s, t):
+                print(f"occurs check 失败: {s} 出现在 {t} 中")
+                return None
+            new_binding = {s: t}
+            res = {k: replace(v, new_binding) for k, v in res.items()}
+            res[s] = t
+            S = [(replace(a, new_binding), replace(b, new_binding)) for a, b in S]
+            continue
 
-    if len(parameters1) != len(parameters2):
-       #print(f"参数数量不一样，怎么合并喵？")
-       return None
-    
-    for it1, it2 in zip(parameters1, parameters2):
-       res = unify(it1, it2, res)
-       if res is None:
-          #print("失败了喵")
-          return None
+        if is_var(t):
+            if is_occurred(t, s):
+                print(f"occurs check 失败: {t} 出现在 {s} 中")
+                return None
+            new_binding = {s: t}
+            res = {k: replace(v, new_binding) for k, v in res.items()}
+            res[s] = t
+            S = [(replace(a, new_binding), replace(b, new_binding)) for a, b in S]
+            continue
 
+        if is_func(s) and is_func(t):
+            fname_s, args_s = split_func(s)
+            fname_t, args_t = split_func(t)
+            if fname_s != fname_t or len(args_s) != len(args_t):
+                print(f"函数不匹配: {fname_s} vs {fname_t}, 参数数 {len(args_s)} vs {len(args_t)}")
+                return None
+            S = list(zip(args_s, args_t)) + S
+            continue
+
+        return None
     return res
 
-def ResolutionPrinciple(kb:set):
-   """返回全部推导步骤，不做回溯"""
-   clauses = list(sorted(kb))
-   initial_count = len(clauses)
-   
-   res = []
-   idx = 1
-   for clause in clauses:
-      res.append(f"{idx} {clause}")
-      idx += 1
-   
-   def try_resolve(ci_idx, cj_idx):
-      """尝试对 ci_idx 和 cj_idx 进行消解"""
-      nonlocal idx
-      
-      ci = clauses[ci_idx]
-      cj = clauses[cj_idx]
-      
-      src_idx = 0
-      for src in ci:
-         obj_idx = 0
-         for obj in cj:
-            if src.startswith('~') == obj.startswith('~'):
-               obj_idx += 1
-               continue
-            
-            sigma = None
-            if src.startswith('~'):
-               sigma = MGU(src[1:], obj)
-            else:
-               sigma = MGU(src, obj[1:])
-            
-            if sigma is None:
-               obj_idx += 1
-               continue
-            
-            new_ci = tuple(replace(lit, sigma) for lit in ci)
-            new_cj = tuple(replace(lit, sigma) for lit in cj)
-            
-            src_replaced = replace(src, sigma)
-            obj_replaced = replace(obj, sigma)
-            
-            merged = sorted(tuple(x for x in new_ci if x != src_replaced) + tuple(x for x in new_cj if x != obj_replaced))
-            merged = simplify(merged)
 
-            suffix_i = "" if len(ci) == 1 else chr(ord('a') + src_idx)
-            suffix_j = "" if len(cj) == 1 else chr(ord('a') + obj_idx)
+#3Resolution Principle 推导
+# 输入 KB = {(A(tony),),(A(mike),),(A(john),),(L(tony,rain),),(L(tony,snow),),(~A(x),S(x),C(x)),(~C(y),~L(y,rain)),(L(z,snow),~S(z)),(~L(tony,u),~L(mike,u)),(L(tony,v),L(mike,v)),(~A(w),~C(w),S(w))}
 
-            ci_line = ci_idx + 1
-            cj_line = cj_idx + 1
-            res.append(f"{idx} R[{ci_line}{suffix_i}, {cj_line}{suffix_j}] = {merged}")
-            idx += 1
-            
-            return merged
-         
-         src_idx += 1
-      
-      return None
-   
-   def dfs(new_clause_idx):
-      """DFS：对新子句和所有前面的子句尝试消解"""
-      for i in range(new_clause_idx):
-         merged = try_resolve(i, new_clause_idx)
-         if merged is not None:
-            if not merged:  # 空子句
-               return True
-            if merged not in clauses:
-               clauses.append(merged)
-               if dfs(len(clauses) - 1):
-                  return True
-      return False
-   
-   # 初始配对
-   for i in range(initial_count):
-      for j in range(i+1, initial_count):
-         merged = try_resolve(i, j)
-         if merged is not None:
-            if not merged:  # 空子句
-               return res
-            if merged not in clauses:
-               clauses.append(merged)
-   
-   # DFS 搜索
-   for i in range(initial_count, len(clauses)):
-      if dfs(i):
-         return res
-   
-   return res
+# 输出
+
+# (A(tony),)
+# (A(mike),)
+# (A(john),)
+# (L(tony,rain),)
+# (L(tony,snow),)
+# (~A(x),S(x),C(x))
+# (~C(y),~L(y,rain))
+# (L(z,snow),~S(z))
+# (~L(tony,u),~L(mike,u))
+# (L(tony,v),L(mike,v))
+# (~A(w),~C(w),S(w))
+# R[2,11a]{w=mike} = (S(mike),~C(mike))
+# R[5,9a]{u=snow} = (~L(mike,snow),)
+# R[6c,12b]{x=mike} = (S(mike),~A(mike),S(mike))
+# R[2,14b] = (S(mike),)
+# R[8b,15]{z=mike} = (L(mike,snow),)
+# R[13,16] = []
+
+from MGU import *
+def Index(literal_idx,clause_idx,len):
+    if len==1:
+        return str(clause_idx+1)
+    else:
+        return str(clause_idx+1)+chr(ord('a')+literal_idx)
+def iscomplementary(x,y):
+    if not x or not y:  
+        return False
+    endx=x.find('(')
+    endy=y.find('(')
+    if x[0]=='~' and x[1:endx]==y[:endy]:
+        return True
+    if y[0]=='~' and y[1:endy]==x[:endx]:
+        return True
+    return False
+def resolve(clause1,clause2,idx1,idx2):   #归结得到新子句
+    newclause=list(clause1)+list(clause2)
+    newclause.remove(clause1[idx1])
+    newclause.remove(clause2[idx2])
+    newclause=list(dict.fromkeys(newclause))
+    return tuple(newclause)
+def sequence(newclause,idx1,idx2,dictionary):
+    if not dictionary:
+        ans='R['+idx1+','+idx2+']='
+    else:
+        ans='R['+idx1+','+idx2+']'
+        for key,value in dictionary.items():
+            ans+='{'+str(key)+'='+str(value)+'}'
+        ans+='='
+    ans+=str(newclause)
+    return ans
+def sub(clause,dictionary):
+    newclause=[]
+    for x in clause:
+        newclause.append(Map(x,dictionary))
+    return tuple(newclause)
+def resolution(KB):
+    ALL=list(KB)
+    support_list=[ALL[-1]]
+    result=[]
+    vis=set()
+    while True:
+        newclauset=[]
+        for clause1_idx in range(len(ALL)):
+            for clause2_idx in range(clause1_idx+1,len(ALL)):
+                if clause1_idx==clause2_idx :
+                    continue
+                clause1,clause2=ALL[clause1_idx],ALL[clause2_idx]
+                if (clause1,clause2) in vis:
+                    continue
+                if clause2 not in support_list and clause1 not in support_list:
+                    continue
+                for literal_idx1 in range(len(clause1)):
+                    for literal_idx2 in range(len(clause2)):
+                        literal1,literal2=clause1[literal_idx1],clause2[literal_idx2]
+                        if not iscomplementary(literal1,literal2):
+                            continue
+                        '''处理互补对'''
+                        literal1=literal1.replace('~','')
+                        literal2=literal2.replace('~','')
+                        literal1,literal2=[literal1],[literal2]
+                        mgu_dict=MGU(literal1,literal2)
+                        if mgu_dict==None:
+                            continue
+                        mgu_clause1=sub(clause1,mgu_dict)
+                        mgu_clause2=sub(clause2,mgu_dict)
+                        newclause=resolve(mgu_clause1,mgu_clause2,literal_idx1,literal_idx2)
+                        if newclause in ALL or newclause in newclauset:
+                            continue
+                        vis.add((clause1,clause2))
+                        idx1=Index(literal_idx1,clause1_idx,len(clause1))
+                        idx2=Index(literal_idx2,clause2_idx,len(clause2))
+                        seq=sequence(newclause,idx1,idx2,mgu_dict)
+                        result.append(seq)
+                        newclauset.append(newclause)
+                        if newclause==():
+                            return result
+        ALL.extend(newclauset)
+        support_list.extend(newclauset)
+def newnum(num,res,usefulres,size):
+    if num<=size:
+        return num
+    fa_seq=res[num-1]
+    start=fa_seq.find('(')
+    for i in range(size,len(usefulres)):
+        begin=usefulres[i].find('(')
+        if usefulres[i][begin:]==fa_seq[start:]:
+            return i+1
+
+def getfa(clause):
+    start=clause.find('[')
+    end=clause.find(']')
+    num=clause[start+1:end].split(',')
+    fa1=int(''.join(x for x in num[0] if not x.isalpha()))
+    fa2=int(''.join(x for x in num[1] if not x.isalpha()))
+    return fa1,fa2
+
+def Resequence(seq,num1,num2,newnum1,newnum2):
+    num1_pos=seq.find(num1)
+    end=num1_pos+len(num1)
+    seq=seq[:num1_pos]+newnum1+seq[end:]
+    findnum2=num1_pos+len(newnum1)
+    num2_pos=seq.find(num2, findnum2)
+    end=num2_pos+len(num2)
+    seq=seq[:num2_pos]+newnum2+seq[end:]
+    return seq
+def simplify(res,size):   #size是初始子句集大小
+    useful=[]
+    que=[len(res)]
+    vis=set()
+    while que!=[]:
+        front=que.pop(0)
+        if front in vis:
+            continue
+        vis.add(front)
+
+        useful.append(res[front-1])
+        fa1,fa2=getfa(res[front-1])
+        if fa1>size:
+            que.append(fa1)
+        if fa2>size:
+            que.append(fa2)
+    useful.reverse()
+    usefulres=res[0:size]+useful
+    for i in range(size,len(usefulres)):
+        fa1,fa2=getfa(usefulres[i])
+        newnum1=str(newnum(fa1,res,usefulres,size))
+        newnum2=str(newnum(fa2,res,usefulres,size))
+        #print(fa1,newnum1,fa2,newnum2)
+        usefulres[i]=Resequence(usefulres[i],str(fa1),str(fa2),newnum1,newnum2)
+    return usefulres
+def solve(KB: set):
+    res=list(KB.copy())+resolution(KB)
+    res=simplify(res,len(KB))
+    return res
