@@ -30,7 +30,7 @@ def ResolutionProp(kb:set):
                 for obj in cj:
                   if obj=='~'+src or src=='~'+obj:
                     merged = sorted(tuple(x for x in ci if x != src) + tuple(x for x in cj if x != obj))
-                    merged = simplify(merged)
+                    merged = simp(merged)
 
                     suffix_i = ""
                     if len(ci) > 1:
@@ -58,7 +58,7 @@ def ResolutionProp(kb:set):
             break
   return res
 
-def simplify(clause):
+def simp(clause):
     """删除互补文字对"""
     clause = list(clause)  # 转为列表
     changed = True
