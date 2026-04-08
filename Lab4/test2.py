@@ -19,19 +19,16 @@ if __name__ == "__main__":
     run_test(['P(xx, a)'], ['P(b, yy)'], "基础合一")
     
     # 2. 嵌套合一：函数嵌套
-    # 对应你之前问的样例：f(xx, yy) 与 f(g(yy), b)
-    run_test(['f(xx, yy)'], ['f(g(yy), b)'], "嵌套合一 (你的样例)")
+    run_test(['f(xx, yy)'], ['f(g(yy), b)'], "嵌套合一")
     
     # 3. 复杂函数嵌套与多变量
-    # P(a, xx, f(g(yy))) 与 P(zz, f(zz), f(uu))
     run_test(['P(a, xx, f(g(yy)))'], ['P(zz, f(zz), f(uu))'], "复杂函数嵌套")
     
     # 4. 冲突失败：同一个变量绑定到不同常量
-    run_test(['f(x, x)'], ['f(a, b)'], "冲突失败 (x=a vs x=b)")
+    run_test(['f(x, x)'], ['f(a, b)'], "冲突")
     
     # 5. Occurs Check 失败：变量出现在包含它的项中
-    # f(x) 与 f(g(x)) -> x 不能等于 g(x)
-    run_test(['f(x)'], ['f(g(x))'], "Occurs Check 失败")
+    run_test(['f(x)'], ['f(g(x))'], "Occurs Check失败")
     
     # 6. 变量与变量合一
     run_test(['P(x, y)'], ['P(y, z)'], "变量与变量")
