@@ -22,6 +22,11 @@ def  Maze(filename):
 """判断是否在迷宫内且未访问过"""
 def is_valid(x, y, visited):
   return (x>=0 and x<height and y>=0 and y<width and maze[x][y] != 1 and not visited[x][y])
+"""重置访问矩阵"""
+def reset_visited():
+  for i in range(height):
+    for j in range(width):
+      visited[i][j] = False
 
 def dfs(x, y, path = []):
   if not is_valid(x, y, visited):
