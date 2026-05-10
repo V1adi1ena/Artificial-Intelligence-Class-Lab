@@ -12,7 +12,6 @@ import tkinter as tk
 from tkinter import messagebox
 import copy
 import time
-import threading
 
 # ───────────────────────────── 常量 ─────────────────────────────
 CELL = 68          # 格子像素
@@ -100,10 +99,6 @@ def get_moves(board, r, c):
                 br, bc = r + dr//2, c
             else:
                 br, bc = r, c + dc//2
-            if not in_board(br, bc):
-                continue
-            if board[br][bc] != 0:
-                continue
             if board[br][bc] != 0:
                 continue
             nr, nc = r+dr, c+dc
@@ -236,50 +231,39 @@ def has_any_move(board, red):
 
 # ───────────────────────────── AI（Alpha-Beta 框架，暂时跳过） ─────────────────────────────
 def evaluate(board):
-    """简单材料评估"""
     vals = {CHE:900, MA:400, XIANG:200, SHI:200, JIANG:10000, PAO:450, BING:100}
-    score = 0
-    for r in range(10):
-        for c in range(9):
-            p = board[r][c]
-            if p != 0:
-                v = vals.get(abs(p), 0)
-                score += v if p > 0 else -v
-    return score
+    s = 0
+    for row in board:
+        for p in row:
+            if p:
+                s += vals[abs(p)] if p > 0 else -vals[abs(p)]
+    return s
 
 def alphabeta(board, depth, alpha, beta, maximizing):
-    """Alpha-Beta 剪枝 MinMax（框架，depth=0 时暂时返回评估值）"""
     if depth == 0:
         return evaluate(board), None
-    red = maximizing
+
     best_move = None
     if maximizing:
-        best = float('-inf')
+        best = -10**9
+        cutoff = False
         for r in range(10):
             for c in range(9):
                 if board[r][c] > 0:
-                    for nr, nc in legal_moves(board, r, c):
+                    for nr, nc in get_moves(board, r, c):
                         nb = copy.deepcopy(board)
-                        nb[nr][nc] = board[r][c]; nb[r][c] = 0
+                        nb[nr][nc], nb[r][c] = nb[r][c], 0
                         val, _ = alphabeta(nb, depth-1, alpha, beta, False)
                         if val > best:
-                            best, best_move = val, (r, c, nr, nc)
+                            best, best_move = val, (r,c,nr,nc)
                         alpha = max(alpha, best)
-                        if beta <= alpha: break
+                        if beta <= alpha:
+                            cutoff = True
+                            break
+                if cutoff: break
+            if cutoff: break
         return best, best_move
     else:
-        best = float('inf')
-        for r in range(10):
-            for c in range(9):
-                if board[r][c] < 0:
-                    for nr, nc in legal_moves(board, r, c):
-                        nb = copy.deepcopy(board)
-                        nb[nr][nc] = board[r][c]; nb[r][c] = 0
-                        val, _ = alphabeta(nb, depth-1, alpha, beta, True)
-                        if val < best:
-                            best, best_move = val, (r, c, nr, nc)
-                        beta = min(beta, best)
-                        if beta <= alpha: break
         return best, best_move
 
 # ───────────────────────────── GUI ─────────────────────────────
@@ -628,33 +612,25 @@ class ChessGame:
         if self.current_red != self.red_is_human:
             self.root.after(600, self._ai_move)
 
-    def _ai_move(self):
-        """AI 走棋"""
-        side = "红方" if self.current_red else "黑方"
-        self.status_var.set(f"{side} AI思考中…")
-        self.canvas.configure(cursor="watch")
-        self.root.update_idletasks()
-        
-        # 使用副本进行计算，避免线程安全问题
-        board_copy = [row[:] for row in self.board]
-        maximizing = self.current_red
-        
+    def ai_move(self):
+        board_copy = copy.deepcopy(self.board)
+        task_id = self.ai_task_id + 1
+        self.ai_task_id = task_id
+
         def worker():
-            # 深度设为 2
-            _, best = alphabeta(board_copy, depth=2, alpha=-float("inf"), beta=float("inf"), maximizing=maximizing)
-            self.root.after(0, lambda: self._apply_ai_move(best))
-            
+            _, best = alphabeta(board_copy, 2, -10**9, 10**9, self.current_red)
+            self.root.after(0, lambda: self.apply_ai_move(best, task_id))
+
         threading.Thread(target=worker, daemon=True).start()
 
-    def _apply_ai_move(self, best):
-        self.canvas.configure(cursor="")
+    def apply_ai_move(self, best, task_id):
+        if task_id != self.ai_task_id:
+            return
         if best:
-            r, c, nr, nc = best
-            self._do_move(r, c, nr, nc)
-        else:
-            winner = "红方" if not self.current_red else "黑方"
-            self._update_status()
-            messagebox.showinfo("游戏结束", f"🎉 {winner}获胜！")
+            r,c,nr,nc = best
+            self.board[nr][nc], self.board[r][c] = self.board[r][c], 0
+            self.current_red = not self.current_red
+            self.draw()
     # ── 功能按钮 ──
     def swap_sides(self):
         """红黑方互换：人类改控对方"""
