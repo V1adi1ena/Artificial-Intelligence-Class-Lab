@@ -389,7 +389,7 @@ def _mobility_bonus(board, red):
 def alphabeta(board, depth, alpha, beta, isMaximizing):
     """
     返回 (best_score, best_move)。
-    best_move 格式示例：(2, 1, 7, 1, None) 表示从 (2,1) 移动到 (7,1)。
+    best_move 格式示例：(2, 1, 7, 1) 表示从 (2,1) 移动到 (7,1)。
     """
     if depth == 0 or not has_any_move(board, isMaximizing):
         return evaluate(board), None

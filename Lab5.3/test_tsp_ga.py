@@ -31,19 +31,13 @@ from tsp_ga import (
     swap_mutation, inversion_mutation,
     GA,
 )
-
-
-# ============================================================
 # Visualization
-# ============================================================
-
 def print_tour_path(tour):
     """Print best tour as 1→2→3→...→1."""
     path_str = "→".join(str(i + 1) for i in tour)
     path_str += f"→{tour[0] + 1}"
     print(f"\n  Best tour path:")
     print(f"  {path_str}")
-
 
 def plot_convergence(history, snapshot_interval=200):
     """Line chart: best tour length vs generation."""
@@ -58,7 +52,6 @@ def plot_convergence(history, snapshot_interval=200):
             plt.scatter(g, history[g], color='red', s=30, zorder=5)
     plt.tight_layout()
     plt.show(block=False)
-
 
 def plot_tour_snapshots(coords, snapshots, cols=3):
     """Show 2D city+tour plots, one per snapshot. Cities = red dots, tour = blue lines."""
@@ -94,15 +87,14 @@ def plot_tour_snapshots(coords, snapshots, cols=3):
     plt.tight_layout()
     plt.show(block=False)
 
-
 # ============================================================
 # User-facing solver
 # ============================================================
 
-def solve_tsp_file(filepath, pop_size=100, generations=500, elite_size=2,
+def solve_tsp_file(filepath, pop_size=100, generations=500, elite_size=3,
                    crossover_possibility=0.8, mutation_possibility=0.2,
                    tournament_size=3, crossover='ox', mutation='swap',
-                   seed=42, verbose=True):
+                   seed=26, verbose=True):
     """Read a TSP file and solve it with the GA.
 
     Displays:
@@ -127,6 +119,7 @@ def solve_tsp_file(filepath, pop_size=100, generations=500, elite_size=2,
     snapshot_interval = 200
 
     print(f"File     : {filepath}")
+    print(f"seed     : {seed}")
     print(f"Cities   : {n}")
     print(f"Pop size : {pop_size}   Generations: {generations}")
     print(f"Crossover: {crossover}     Mutation   : {mutation}")
@@ -167,18 +160,13 @@ def solve_tsp_file(filepath, pop_size=100, generations=500, elite_size=2,
 
     return tour, length, elapsed
 
-
-# ============================================================
 # CLI
-# ============================================================
-
 def _list_tsp_files():
     files = sorted(glob.glob('*.tsp'))
     if not files:
         print("No .tsp files found in current directory.")
         sys.exit(1)
     return files
-
 
 def _pick_file_interactive(files):
     print("\nAvailable TSP files:")
@@ -193,7 +181,6 @@ def _pick_file_interactive(files):
         except ValueError:
             pass
         print("Invalid choice, try again.")
-
 
 def _pick_operator_interactive(name, options):
     print(f"\n{name} methods:")
@@ -210,7 +197,6 @@ def _pick_operator_interactive(name, options):
         except ValueError:
             pass
         print("Invalid choice, try again.")
-
 
 def main():
     """Entry point: solve a TSP file with user-chosen operators."""
@@ -255,11 +241,7 @@ def main():
     solve_tsp_file(filepath, pop_size=pop_size, generations=generations,
                    crossover=crossover, mutation=mutation)
 
-
-# ============================================================
 # Unit tests
-# ============================================================
-
 class TestFileIO(unittest.TestCase):
 
     def test_read_tsp_wi29(self):
@@ -281,7 +263,6 @@ class TestFileIO(unittest.TestCase):
         coords = read_tsp('ch71009.tsp')
         self.assertEqual(len(coords), 71009)
 
-
 class TestDistance(unittest.TestCase):
 
     def test_calc_distance_same(self):
@@ -302,9 +283,7 @@ class TestDistance(unittest.TestCase):
         l2 = tour_length([0, 2, 1], coords)
         self.assertAlmostEqual(l1, l2)
 
-
 class TestPopulation(unittest.TestCase):
-
     def test_init_population_size(self):
         pop = init_population(10, 20)
         self.assertEqual(len(pop), 20)
@@ -316,7 +295,6 @@ class TestPopulation(unittest.TestCase):
         for ind in pop:
             self.assertEqual(sorted(ind), list(range(8)))
             self.assertEqual(len(set(ind)), 8)
-
 
 class TestSelection(unittest.TestCase):
 
@@ -333,7 +311,6 @@ class TestSelection(unittest.TestCase):
         selected = tournament_select(self.pop, self.fitnesses, 3)
         self.assertEqual(len(selected), self.n)
         self.assertEqual(sorted(selected), list(range(self.n)))
-
 
 class TestCrossover(unittest.TestCase):
 
@@ -373,7 +350,6 @@ class TestCrossover(unittest.TestCase):
         for _ in range(50):
             child = pmx_crossover(p1, p2)
             self._assert_valid_perm(child, n)
-
 
 class TestMutation(unittest.TestCase):
 
@@ -421,7 +397,6 @@ class TestMutation(unittest.TestCase):
             self.assertEqual(child[2:6], [5, 4, 3, 2])
         finally:
             random.sample = orig_sample
-
 
 class TestGASolve(unittest.TestCase):
 
@@ -494,7 +469,6 @@ class TestGASolve(unittest.TestCase):
         self.assertEqual(snapshots[2][0], 60)
         self.assertEqual(snapshots[3][0], 90)
 
-
 class TestIntegration(unittest.TestCase):
 
     def test_all_tsp_files_readable(self):
@@ -519,7 +493,6 @@ class TestIntegration(unittest.TestCase):
                 )
                 self.assertEqual(sorted(tour), list(range(len(coords))))
                 self.assertGreater(length, 0)
-
 
 if __name__ == '__main__':
     main()

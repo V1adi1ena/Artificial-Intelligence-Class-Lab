@@ -1,5 +1,7 @@
 import random
 import math
+
+from numpy import power
 """接收文件路径；返回坐标(x, y)列表"""
 def read_tsp(filepath):
     """Parse TSPLIB format file, return list of (x, y) coordinates."""
@@ -87,9 +89,9 @@ def inversion_mutation(tour, mutation_possibility=0.1):
         i, j = sorted(random.sample(range(len(tour)), 2))
         tour[i:j + 1] = reversed(tour[i:j + 1])
     return tour
-# GA solver (single TSP)
-def GA(coords, pop_size=100, generations=500, elite_size=2,
-       crossover_possibility=0.8, mutation_possibility=0.1, tournament_size=3,
+
+def GA(coords, pop_size=100, generations=500, elite_size=3,
+       crossover_possibility=0.8, mutation_possibility=0.998, tournament_size=3,
        crossover='ox', mutation='swap', seed=None, snapshot_interval=200,
        verbose=True):
     """Solve one TSP instance with a genetic algorithm.
@@ -132,7 +134,7 @@ def GA(coords, pop_size=100, generations=500, elite_size=2,
 
     for gen in range(generations):
         lengths = [tour_length(t, coords) for t in population]
-        fitnesses = [1.0 / l for l in lengths]
+        fitness = [1.0 / l for l in lengths]
 
         min_idx = min(range(len(lengths)), key=lambda i: lengths[i])
         if lengths[min_idx] < best_length:
@@ -154,15 +156,15 @@ def GA(coords, pop_size=100, generations=500, elite_size=2,
         new_pop = [population[sorted_idx[i]][:] for i in range(elite_size)]
 
         while len(new_pop) < pop_size:
-            p1 = tournament_select(population, fitnesses, tournament_size)
-            p2 = tournament_select(population, fitnesses, tournament_size)
+            p1 = tournament_select(population, fitness, tournament_size)
+            p2 = tournament_select(population, fitness, tournament_size)
 
             if random.random() < crossover_possibility:
                 child = crossover_fn(p1, p2)
             else:
                 child = p1[:]
 
-            child = mutation_fn(child, mutation_possibility)
+            child = mutation_fn(child, power(mutation_possibility, gen))
             new_pop.append(child)
 
         population = new_pop
