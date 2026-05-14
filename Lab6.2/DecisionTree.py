@@ -10,5 +10,5 @@ df = pd.read_csv(
     names=columns
 )
 
-print(df.head())
+print(df["target"][1:3])
 
