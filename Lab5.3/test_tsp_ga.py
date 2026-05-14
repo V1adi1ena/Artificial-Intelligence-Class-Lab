@@ -91,10 +91,10 @@ def plot_tour_snapshots(coords, snapshots, cols=3):
 # User-facing solver
 # ============================================================
 
-def solve_tsp_file(filepath, pop_size=100, generations=500, elite_size=3,
-                   crossover_possibility=0.8, mutation_possibility=0.2,
-                   tournament_size=3, crossover='ox', mutation='swap',
-                   seed=26, verbose=True):
+def solve_tsp_file(filepath, pop_size=100, generations=500, elite_size=4,
+                   crossover_possibility=0.8, mutation_possibility=0.6,
+                   tournament_size=5, crossover='ox', mutation='swap',
+                   seed=22, verbose=True):
     """Read a TSP file and solve it with the GA.
 
     Displays:

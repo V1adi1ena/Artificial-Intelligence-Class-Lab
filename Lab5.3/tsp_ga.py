@@ -91,7 +91,7 @@ def inversion_mutation(tour, mutation_possibility=0.1):
     return tour
 
 def GA(coords, pop_size=100, generations=500, elite_size=3,
-       crossover_possibility=0.8, mutation_possibility=0.998, tournament_size=3,
+       crossover_possibility=0.8, mutation_possibility=0.6, tournament_size=3,
        crossover='ox', mutation='swap', seed=None, snapshot_interval=200,
        verbose=True):
     """Solve one TSP instance with a genetic algorithm.
@@ -164,7 +164,7 @@ def GA(coords, pop_size=100, generations=500, elite_size=3,
             else:
                 child = p1[:]
 
-            child = mutation_fn(child, power(mutation_possibility, gen))
+            child = mutation_fn(child, mutation_possibility * power(0.9985, gen))
             new_pop.append(child)
 
         population = new_pop

@@ -7,15 +7,15 @@ from minimax import solve
 # print("-------------------------------------")
 
 
-# """minimax6"""
-# print("--------------minimax6:---------------")
-# solve('test_cases/test06/input.txt')
-# print("-------------------------------------")
+"""minimax6"""
+print("--------------minimax6:---------------")
+solve('test_cases/test06/input.txt')
+print("-------------------------------------")
 
-# """minimax10"""
-# print("--------------minimax10:---------------")
-# solve('test_cases/test10/input.txt')
-# print("-------------------------------------")
+"""minimax10"""
+print("--------------minimax10:---------------")
+solve('test_cases/test10/input.txt')
+print("-------------------------------------")
 
 """minimax13"""
 print("--------------minimax13:---------------")
