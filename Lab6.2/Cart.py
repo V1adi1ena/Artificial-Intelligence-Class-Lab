@@ -4,24 +4,17 @@ import numpy as np
 
 @dataclass
 class Node:
-    # 当前划分使用的特征索引
     feature: Optional[int] = None
-    # 当前划分阈值
     threshold: Optional[float] = None
-    # 当前节点信息增益 / gain ratio / gini下降
     score: Optional[float] = None
-    # 左右子树
     left: Optional["Node"] = None
     right: Optional["Node"] = None
-    # 叶子节点类别
     value: Optional[Any] = None
-    # 当前节点样本数
     samples: int = 0
-    # 当前节点类别统计
     class_counts: Optional[dict] = None
-    # 当前节点深度
     depth: int = 0
-  
+
+
 class CARTClassifier:
     def __init__(
         self,
@@ -31,88 +24,187 @@ class CARTClassifier:
         min_impurity_decrease=0.0,
         ccp_alpha=0.0
     ):
-        # 最大深度
         self.max_depth = max_depth
-        # 最小划分样本数
         self.min_samples_split = min_samples_split
-        # 最小叶子节点样本数
         self.min_samples_leaf = min_samples_leaf
-        # 最小基尼下降
         self.min_impurity_decrease = min_impurity_decrease
-        # CCP剪枝参数
         self.ccp_alpha = ccp_alpha
-        # 根节点
         self.root = None
-        # 类别数
         self.n_classes = None
-        # 特征数
         self.n_features = None
 
-    # 训练入口
     def fit(self, X, y):
-        pass
+        self.n_features = X.shape[1]
+        self.n_classes = len(np.unique(y))
+        self.root = self._grow_tree(X, y, 0)
+        if self.ccp_alpha > 0:
+            self._prune()
 
-    # 递归建树
     def _grow_tree(self, X, y, depth):
-        pass
+        n_samples = len(y)
+        if n_samples < self.min_samples_split:
+            return Node(value=self._leaf_value(y), samples=n_samples,
+                       class_counts=np.bincount(y), depth=depth)
 
-    # 寻找最佳划分
+        if self.max_depth is not None and depth >= self.max_depth:
+            return Node(value=self._leaf_value(y), samples=n_samples,
+                       class_counts=np.bincount(y), depth=depth)
+
+        if len(np.unique(y)) == 1:
+            return Node(value=self._leaf_value(y), samples=n_samples,
+                       class_counts=np.bincount(y), depth=depth)
+
+        best_feature, best_threshold, best_gain = self._best_split(X, y)
+
+        if best_feature is None:
+            return Node(value=self._leaf_value(y), samples=n_samples,
+                       class_counts=np.bincount(y), depth=depth)
+
+        left_idx, right_idx = self._split(X[:, best_feature], best_threshold)
+
+        if len(left_idx) < self.min_samples_leaf or len(right_idx) < self.min_samples_leaf:
+            return Node(value=self._leaf_value(y), samples=n_samples,
+                       class_counts=np.bincount(y), depth=depth)
+
+        node = Node(
+            feature=best_feature,
+            threshold=best_threshold,
+            score=best_gain,
+            left=self._grow_tree(X[left_idx], y[left_idx], depth + 1),
+            right=self._grow_tree(X[right_idx], y[right_idx], depth + 1),
+            samples=n_samples,
+            class_counts=np.bincount(y),
+            depth=depth
+        )
+        return node
+
     def _best_split(self, X, y):
-        pass
+        best_gain = self.min_impurity_decrease
+        best_feature = None
+        best_threshold = None
 
-    # 计算Gini
+        for i in range(X.shape[1]):
+            thresholds = self._candidate_thresholds(X[:, i])
+            for threshold in thresholds:
+                left_idx, right_idx = self._split(X[:, i], threshold)
+                gain = self._gini_gain(y, left_idx, right_idx)
+                if gain > best_gain:
+                    best_gain = gain
+                    best_feature = i
+                    best_threshold = threshold
+
+        if best_feature is None:
+            return None, None, None
+        return best_feature, best_threshold, best_gain
+
     def _gini(self, y):
-        pass
+        if len(y) == 0:
+            return 0.0
+        class_counts = np.bincount(y)
+        probs = class_counts[class_counts > 0] / len(y)
+        return 1.0 - np.sum(probs ** 2)
 
-    # 计算划分后的Gini
-    def _gini_gain(
-        self,
-        y,
-        left_indices,
-        right_indices
-    ):
-        pass
+    def _gini_gain(self, y, left_indices, right_indices):
+        n_left = len(left_indices)
+        n_right = len(right_indices)
+        n = len(y)
+        if n_left == 0 or n_right == 0:
+            return 0.0
+        gini_parent = self._gini(y)
+        gini_left = self._gini(y[left_indices])
+        gini_right = self._gini(y[right_indices])
+        return gini_parent - (n_left / n * gini_left + n_right / n * gini_right)
 
-    # 划分数据
-    def _split(
-        self,
-        feature_column,
-        threshold
-    ):
-        pass
+    def _split(self, feature_column, threshold):
+        left_indices = np.where(feature_column <= threshold)[0]
+        right_indices = np.where(feature_column > threshold)[0]
+        return left_indices, right_indices
 
-    # 生成叶子节点类别
+    def _candidate_thresholds(self, feature_column):
+        values = np.unique(feature_column)
+        thresholds = []
+        for i in range(len(values) - 1):
+            thresholds.append((values[i] + values[i + 1]) / 2)
+        return thresholds
+
     def _leaf_value(self, y):
-        pass
+        class_counts = np.bincount(y)
+        return np.argmax(class_counts)
 
-    # 单样本预测
     def _predict_one(self, x, node):
-        pass
+        if node.value is not None:
+            return node.value
+        if x[node.feature] <= node.threshold:
+            return self._predict_one(x, node.left)
+        else:
+            return self._predict_one(x, node.right)
 
-    # 批量预测
     def predict(self, X):
-        pass
+        return np.array([self._predict_one(x, self.root) for x in X])
 
-    # 后剪枝
-    def prune(self):
-        pass
+    def _prune(self):
+        while self._prune_tree(self.root):
+            pass
 
-    # CCP递归剪枝
     def _prune_tree(self, node):
-        pass
+        if node is None or node.value is not None:
+            return False
 
-    # 子树误差
+        pruned = False
+        if node.left is not None:
+            pruned |= self._prune_tree(node.left)
+        if node.right is not None:
+            pruned |= self._prune_tree(node.right)
+
+        left_leaf = node.left is None or node.left.value is not None
+        right_leaf = node.right is None or node.right.value is not None
+
+        if left_leaf and right_leaf:
+            subtree_cost = self._subtree_cost(node)
+            n_leaves = self._num_leaves(node)
+            if n_leaves > 1:
+                leaf_cost = node.samples - np.max(node.class_counts)
+                effective_alpha = (leaf_cost - subtree_cost) / (n_leaves - 1)
+                if effective_alpha <= self.ccp_alpha:
+                    node.feature = None
+                    node.threshold = None
+                    node.score = None
+                    node.left = None
+                    node.right = None
+                    node.value = np.argmax(node.class_counts)
+                    pruned = True
+
+        return pruned
+
     def _subtree_cost(self, node):
-        pass
+        if node is None:
+            return 0
+        if node.value is not None:
+            return node.samples - np.max(node.class_counts)
+        return self._subtree_cost(node.left) + self._subtree_cost(node.right)
 
-    # 叶节点数
     def _num_leaves(self, node):
-        pass
+        if node is None:
+            return 0
+        if node.value is not None:
+            return 1
+        return self._num_leaves(node.left) + self._num_leaves(node.right)
 
-    # 打印树
     def print_tree(self):
-        pass
+        if self.root is None:
+            print("Tree not built yet.")
+            return
+        self._print_tree(self.root)
 
-    # 递归打印
     def _print_tree(self, node, indent=""):
-        pass
+        if node.value is not None:
+            majority = np.argmax(node.class_counts) if node.class_counts is not None else "?"
+            print(f"{indent}[Leaf] depth={node.depth} | class={node.value} (majority={majority}) | samples={node.samples}")
+            return
+        print(f"{indent}[Node] depth={node.depth} | feature={node.feature} <= {node.threshold:.4f} | gini_gain={node.score:.4f} | samples={node.samples}")
+        if node.left is not None:
+            print(f"{indent}  Left:")
+            self._print_tree(node.left, indent + "    ")
+        if node.right is not None:
+            print(f"{indent}  Right:")
+            self._print_tree(node.right, indent + "    ")

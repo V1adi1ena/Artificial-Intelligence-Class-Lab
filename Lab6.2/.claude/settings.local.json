@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python test_cart.py)",
+      "Bash(python test.py)"
+    ]
+  }
+}

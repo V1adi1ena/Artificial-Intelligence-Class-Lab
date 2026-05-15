@@ -43,6 +43,8 @@ class C45Classifier:
         self.n_classes = None
     # 训练
     def fit(self, X, y):
+        self.n_features = X.shape[1]
+        self.n_classes = len(np.unique(y))
         self.root = self._grow_tree(X, y, 0)
     # 递归建树
     def _grow_tree(self, X, y, depth):
@@ -68,7 +70,7 @@ class C45Classifier:
         best_gain_ratio = 0.0
         best_feature = None
         best_threshold = None
-        for i in range(len(X[0])):
+        for i in range(X.shape[1]):
             thresholds = self._candidate_thresholds(X[:, i])
             for threshold in thresholds:
                 left_indices, right_indices = self._split(X[:, i], threshold)
